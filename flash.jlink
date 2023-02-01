@@ -1,0 +1,9 @@
+device RP2040_M0_0
+si 1
+speed 25000
+connect
+reset
+halt
+loadfile blink.hex
+go
+exit
