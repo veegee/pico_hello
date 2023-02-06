@@ -63,7 +63,7 @@ private:
 
     // The ST7789 requires 16 ns between SPI rising edges.
     // 16ns = 62,500,000Hz
-    static uint32_t const SPI_BAUD = 64'000'000;
+    static uint32_t const SPI_BAUD = 250'000'000 / 4;
 
 
 public:
@@ -73,7 +73,9 @@ public:
             cs(pins.cs), dc(pins.dc), wr_sck(pins.sck), d0(pins.mosi), bl(pins.bl) {
 
         // configure SPI interface and pins
-        spi_init(spi, SPI_BAUD);
+        uint speed = spi_init(spi, SPI_BAUD);
+        spi_get_hw(spi)->cpsr = 4;
+        hw_write_masked(&spi_get_hw(spi)->cr0, 0, SPI_SSPCR0_SCR_BITS);
 
         gpio_set_function(wr_sck, GPIO_FUNC_SPI);
         gpio_set_function(d0, GPIO_FUNC_SPI);

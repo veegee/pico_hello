@@ -1,4 +1,6 @@
 #include <cmath>
+#include <cstdio>
+#include <iostream>
 
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
@@ -7,7 +9,10 @@
 #include "ST7789VW/pico_graphics.hpp"
 #include "ST7789VW/st7789.hpp"
 #include "ST7789VW/hal_impl.h"
-#include "ST7789VW/ST7789VW.h"
+#include "hardware/pll.h"
+#include "hardware/clocks.h"
+#include "hardware/structs/pll.h"
+#include "hardware/structs/clocks.h"
 
 
 void draw_sin(SSD1306 & disp, uint8_t offset, uint8_t y_scale) {
@@ -92,7 +97,7 @@ void draw_sin(PicoGraphics & graphics, uint16_t offset, uint16_t y_scale) {
     float const y_offset = (height / 2.0f - 1) - y_scale;  // vertically center the graph
 
     static uint8_t const thickness_x = 1;
-    static uint8_t const thickness_y = 6;
+    static uint8_t const thickness_y = 4;
 
     for (uint16_t x = 0; x < width; x++) {
         float const xr = 4 * M_PI * (x / width);
@@ -119,8 +124,42 @@ void draw_sin(PicoGraphics & graphics, uint16_t offset, uint16_t y_scale) {
     }
 }
 
+void measure_freqs() {
+    uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
+    uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
+    uint f_rosc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_ROSC_CLKSRC);
+    uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
+    uint f_clk_peri = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_PERI);
+    uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
+    uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
+    uint f_clk_rtc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_RTC);
+
+    printf("pll_sys  = %dkHz\n", f_pll_sys);
+    printf("pll_usb  = %dkHz\n", f_pll_usb);
+    printf("rosc     = %dkHz\n", f_rosc);
+    printf("clk_sys  = %dkHz\n", f_clk_sys);
+    printf("clk_peri = %dkHz\n", f_clk_peri);
+    printf("clk_usb  = %dkHz\n", f_clk_usb);
+    printf("clk_adc  = %dkHz\n", f_clk_adc);
+    printf("clk_rtc  = %dkHz\n", f_clk_rtc);
+    printf("\n");
+
+    // Can't measure clk_ref / xosc as it is the ref
+}
+
 int main() {
-//    set_sys_clock_khz(270'000, true);
+    set_sys_clock_khz(270'000, true);  // 270MHz max
+
+    clock_configure(clk_peri,
+                    0,
+                    CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
+                    48 * MHZ,
+                    48 * MHZ);
+
+//    stdio_init_all();
+//    sleep_ms(3000);
+//    measure_freqs();
+
 
     // initialize hardware for LED
     const uint LED_PIN = PICO_DEFAULT_LED_PIN;
@@ -129,20 +168,18 @@ int main() {
     uint8_t led_status = 0;
 
     // initialize hardware for I2C OLED display
-    i2c_init(i2c1, 3'400'000);
+//    i2c_init(i2c1, 400'000);
+    i2c_init(i2c1, 3'300'000);  // actual clock at 250MHz core: 2.72MHz
     gpio_set_function(2, GPIO_FUNC_I2C);
     gpio_set_function(3, GPIO_FUNC_I2C);
     gpio_pull_up(2);
     gpio_pull_up(3);
 
-//    SSD1306 disp(128, 64, 0x3C, i2c1);
-//    disp.clear();
-//    disp.show();
+    SSD1306 disp(128, 64, 0x3C, i2c1);
+    disp.clear();
+    disp.show();
 
     // initialize hardware for SPI IPS LCD
-//    DEV_Module_Init();
-//    ST7789VW disp2(320, 240, HORIZONTAL, spi1);
-
     SPIPins pins{spi0, LCD_CS_PIN, LCD_CLK_PIN, LCD_MOSI_PIN, PIN_UNUSED, LCD_DC_PIN, PIN_UNUSED};
     ST7789 st7789(320, 240, ROTATE_0, false, pins);
     PicoGraphics_PenRGB565 graphics(st7789.width, st7789.height, nullptr);
@@ -151,7 +188,6 @@ int main() {
     graphics.set_pen(bg_pen);
     graphics.clear();
     st7789.update(&graphics);
-
 
     while (true) {
 //        led_status = ~led_status;
@@ -175,18 +211,34 @@ int main() {
 //            disp.clear();
 //            draw_sin(disp, offset, 31);
 //            disp.show();
+//
+//            sleep_us(100);
 //        }
 
-        for (uint16_t offset = 0; offset < 300; offset++) {
+//        for (uint16_t offset = 0; offset < 300; offset++) {
+//            led_status = ~led_status;
+//            gpio_put(LED_PIN, led_status);
+//
+//            graphics.set_pen(bg_pen);
+//            graphics.clear();
+//            graphics.set_pen(pen);
+//            draw_fast(graphics, offset);
+//            st7789.update(&graphics);
+//        }
+
+        for (uint16_t offset = 0; offset < 320; offset++) {
             led_status = ~led_status;
             gpio_put(LED_PIN, led_status);
 
             graphics.set_pen(bg_pen);
             graphics.clear();
             graphics.set_pen(pen);
-            draw_fast(graphics, offset);
+            draw_sin(graphics, offset, 110);
             st7789.update(&graphics);
         }
+
+//        measure_freqs();
+//        sleep_ms(3000);
     }
 }
 

@@ -4,6 +4,6 @@ speed 25000
 connect
 reset
 halt
-loadfile blink.hex
+loadfile main.hex
 go
 exit
