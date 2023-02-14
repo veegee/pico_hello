@@ -14,6 +14,8 @@
 #include "hardware/structs/pll.h"
 #include "hardware/structs/clocks.h"
 
+#include "main.hpp"
+
 
 void draw_sin(SSD1306 & disp, uint8_t offset, uint8_t y_scale) {
     float const offset_rad = 4 * M_PI * (offset / 128.0);
@@ -148,13 +150,13 @@ void measure_freqs() {
 }
 
 int main() {
-    set_sys_clock_khz(270'000, true);  // 270MHz max
+//    set_sys_clock_khz(270'000, true);  // 270MHz max
 
-    clock_configure(clk_peri,
-                    0,
-                    CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
-                    48 * MHZ,
-                    48 * MHZ);
+//    clock_configure(clk_peri,
+//                    0,
+//                    CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
+//                    48 * MHZ,
+//                    48 * MHZ);
 
 //    stdio_init_all();
 //    sleep_ms(3000);
@@ -168,28 +170,53 @@ int main() {
     uint8_t led_status = 0;
 
     // initialize hardware for I2C OLED display
-//    i2c_init(i2c1, 400'000);
-    i2c_init(i2c1, 3'300'000);  // actual clock at 250MHz core: 2.72MHz
-    gpio_set_function(2, GPIO_FUNC_I2C);
-    gpio_set_function(3, GPIO_FUNC_I2C);
-    gpio_pull_up(2);
-    gpio_pull_up(3);
+    i2c_init(i2c0, 3'000'000);
+    gpio_set_function(I2C_Pins::SDA, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_Pins::SCL, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_Pins::SDA);
+    gpio_pull_up(I2C_Pins::SCL);
 
-    SSD1306 disp(128, 64, 0x3C, i2c1);
+    // initialize hardware for SPI OLED display
+    gpio_init(SPI_Pins::CLK);
+    gpio_init(SPI_Pins::MOSI);
+    gpio_init(SPI_Pins::CS);
+    gpio_init(SPI_Pins::DC);
+    gpio_init(SPI_Pins::RST);
+
+//    gpio_set_dir(SPI_Pins::CS, GPIO_OUT);
+    gpio_set_dir(SPI_Pins::DC, GPIO_OUT);
+    gpio_set_dir(SPI_Pins::RST, GPIO_OUT);
+    gpio_put(SPI_Pins::RST, 0);
+
+    gpio_set_slew_rate(SPI_Pins::CLK, GPIO_SLEW_RATE_SLOW);
+    gpio_set_slew_rate(SPI_Pins::MOSI, GPIO_SLEW_RATE_SLOW);
+
+    gpio_set_function(SPI_Pins::CLK, GPIO_FUNC_SPI);
+    gpio_set_function(SPI_Pins::MOSI, GPIO_FUNC_SPI);
+    gpio_set_function(SPI_Pins::CS, GPIO_FUNC_SPI);
+    spi_init(spi0, 1'000'000);
+
+//    spi_get_hw(spi0)->cpsr = 4;
+//    hw_write_masked(&spi_get_hw(spi0)->cr0, 0, SPI_SSPCR0_SCR_BITS);
+
+    SSD1306 disp(128, 64, 0x3C, i2c0);
     disp.clear();
     disp.show();
 
     // initialize hardware for SPI IPS LCD
-    SPIPins pins{spi0, LCD_CS_PIN, LCD_CLK_PIN, LCD_MOSI_PIN, PIN_UNUSED, LCD_DC_PIN, PIN_UNUSED};
-    ST7789 st7789(320, 240, ROTATE_0, false, pins);
-    PicoGraphics_PenRGB565 graphics(st7789.width, st7789.height, nullptr);
-    Pen bg_pen = graphics.create_pen(0, 0, 0);
-    Pen pen = graphics.create_pen(255, 255, 255);
-    graphics.set_pen(bg_pen);
-    graphics.clear();
-    st7789.update(&graphics);
+//    SPIPins pins{spi0, LCD_CS_PIN, LCD_CLK_PIN, LCD_MOSI_PIN, PIN_UNUSED, LCD_DC_PIN, PIN_UNUSED};
+//    ST7789 st7789(320, 240, ROTATE_0, false, pins);
+//    PicoGraphics_PenRGB565 graphics(st7789.width, st7789.height, nullptr);
+//    Pen bg_pen = graphics.create_pen(0, 0, 0);
+//    Pen pen = graphics.create_pen(255, 255, 255);
+//    graphics.set_pen(bg_pen);
+//    graphics.clear();
+//    st7789.update(&graphics);
 
     while (true) {
+//        SSD1306 disp(128, 64, 0x3C, i2c0);
+//        continue;
+
 //        led_status = ~led_status;
 //        gpio_put(LED_PIN, led_status);
 //        disp.clear();
@@ -204,16 +231,16 @@ int main() {
 //        disp.show();
 //        sleep_ms(1000);
 
-//        for (uint16_t offset = 0; offset < 128; offset++) {
-//            led_status = ~led_status;
-//            gpio_put(LED_PIN, led_status);
-//
-//            disp.clear();
-//            draw_sin(disp, offset, 31);
-//            disp.show();
-//
-//            sleep_us(100);
-//        }
+        for (uint16_t offset = 0; offset < 128; offset++) {
+            led_status = ~led_status;
+            gpio_put(LED_PIN, led_status);
+
+            disp.clear();
+            draw_sin(disp, offset, 31);
+            disp.show();
+
+            sleep_us(100);
+        }
 
 //        for (uint16_t offset = 0; offset < 300; offset++) {
 //            led_status = ~led_status;
@@ -226,16 +253,16 @@ int main() {
 //            st7789.update(&graphics);
 //        }
 
-        for (uint16_t offset = 0; offset < 320; offset++) {
-            led_status = ~led_status;
-            gpio_put(LED_PIN, led_status);
-
-            graphics.set_pen(bg_pen);
-            graphics.clear();
-            graphics.set_pen(pen);
-            draw_sin(graphics, offset, 110);
-            st7789.update(&graphics);
-        }
+//        for (uint16_t offset = 0; offset < 320; offset++) {
+//            led_status = ~led_status;
+//            gpio_put(LED_PIN, led_status);
+//
+//            graphics.set_pen(bg_pen);
+//            graphics.clear();
+//            graphics.set_pen(pen);
+//            draw_sin(graphics, offset, 110);
+//            st7789.update(&graphics);
+//        }
 
 //        measure_freqs();
 //        sleep_ms(3000);

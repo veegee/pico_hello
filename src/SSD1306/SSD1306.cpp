@@ -1,4 +1,6 @@
 #include "SSD1306.h"
+#include <hardware/spi.h>
+#include "../ST7789VW/hal_impl.h"
 
 SSD1306::SSD1306(uint8_t const width, uint8_t const height, uint8_t const address, i2c_inst_t * const i2c_instance)
         : width(width), height(height), address(address), i2c_i(i2c_instance) {
@@ -12,6 +14,13 @@ SSD1306::SSD1306(uint8_t const width, uint8_t const height, uint8_t const addres
     }
 
     buffer++;
+
+    gpio_put(SPI_Pins::RST, 1);
+    sleep_ms(100);
+//    gpio_put(SPI_Pins::RST, 0);
+//    sleep_ms(100);
+//    gpio_put(SPI_Pins::RST, 1);
+//    sleep_ms(100);
 
     std::vector<uint8_t> cmds = {
             SET_DISP,
@@ -48,7 +57,7 @@ SSD1306::SSD1306(uint8_t const width, uint8_t const height, uint8_t const addres
     };
 
     for (uint8_t cmd: cmds) {
-        write(cmd);
+        write_command(cmd);
     }
 
 }
@@ -57,46 +66,20 @@ SSD1306::~SSD1306() {
     free(buffer - 1);
 }
 
-void SSD1306::fancy_write(uint8_t addr, const uint8_t * src, size_t len, std::string name) {
-    switch (i2c_write_blocking(i2c_i, addr, src, len, false)) {
-        case PICO_ERROR_GENERIC:
-            // printf("[%s] addr not acknowledged!\n", name);
-            break;
-        case PICO_ERROR_TIMEOUT:
-            // printf("[%s] timeout!\n", name);
-            break;
-        default:
-            // printf("[%s] wrote successfully %lu bytes!\n", name, len);
-            break;
-    }
+void SSD1306::write(uint8_t addr, const uint8_t * src, size_t len) {
+    spi_write_blocking(spi0, src, len);
+    i2c_write_blocking(i2c_i, addr, src, len, false);
 }
 
-void SSD1306::write(uint8_t val) {
+void SSD1306::write_command(uint8_t val) {
+    gpio_put(SPI_Pins::DC, 0);
     uint8_t d[2] = {0x00, val};
-    fancy_write(address, d, 2, "write");
-}
-
-void SSD1306::swap(int32_t * a, int32_t * b) {
-    int32_t * t = a;
-    *a = *b;
-    *b = *t;
-}
-
-void SSD1306::poweroff() {
-    write(SET_DISP | 0x00);
-}
-
-void SSD1306::poweron() {
-    write(SET_DISP | 0x01);
-}
-
-void SSD1306::contrast(uint8_t val) {
-    write(SET_CONTRAST);
-    write(val);
+    write(address, d, 2);
+    gpio_put(SPI_Pins::DC, 1);
 }
 
 void SSD1306::invert(uint8_t inv) {
-    write(SET_NORM_INV | (inv & 1));
+    write_command(SET_NORM_INV | (inv & 1));
 }
 
 void SSD1306::clear() {
@@ -107,42 +90,6 @@ void SSD1306::draw_pixel(uint32_t x, uint32_t y) {
     if (x >= width || y >= height) return;
 
     buffer[x + width * (y >> 3)] |= 0x1 << (y & 0x07); // y>>3==y/8 && y&0x7==y%8
-}
-
-void SSD1306::draw_line(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
-    if (x1 > x2) {
-        swap(&x1, &x2);
-        swap(&y1, &y2);
-    }
-
-    if (x1 == x2) {
-        if (y1 > y2)
-            swap(&y1, &y2);
-        for (int32_t i = y1; i <= y2; ++i)
-            draw_pixel(x1, i);
-        return;
-    }
-
-    float m = (float) (y2 - y1) / (float) (x2 - x1);
-
-    for (int32_t i = x1; i <= x2; ++i) {
-        float y = m * (float) (i - x1) + (float) y1;
-        draw_pixel(i, (uint32_t) y);
-    }
-}
-
-void SSD1306::draw_square(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
-    for (uint32_t i = 0; i < width; ++i)
-        for (uint32_t j = 0; j < height; ++j)
-            draw_pixel(x + i, y + j);
-
-}
-
-void SSD1306::draw_empty_square(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
-    draw_line(x, y, x + width, y);
-    draw_line(x, y + height, x + width, y + height);
-    draw_line(x, y, x, y + height);
-    draw_line(x + width, y, x + width, y + height);
 }
 
 void SSD1306::draw_char_with_font(const uint32_t x, const uint32_t y,
@@ -190,10 +137,10 @@ void SSD1306::show() {
     }
 
     for (const uint8_t data: payload) {
-        write(data);
+        write_command(data);
     }
 
     *(buffer - 1) = 0x40;
 
-    fancy_write(address, buffer - 1, bufsize + 1, "show");
+    write(address, buffer - 1, bufsize + 1);
 }

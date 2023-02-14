@@ -16,6 +16,7 @@
 #define LCD_CLK_PIN  6
 #define LCD_MOSI_PIN 7
 
+
 void DEV_Digital_Write(uint16_t Pin, uint8_t Value);
 
 uint8_t DEV_Digital_Read(uint16_t Pin);
