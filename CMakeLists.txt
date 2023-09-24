@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 
-include(/home/veegee/pico/pico-sdk/pico_sdk_init.cmake)
+include(/Users/veegee/lib/pico-sdk/pico_sdk_init.cmake)
 
 project(main C CXX ASM)
 
